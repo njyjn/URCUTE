@@ -367,16 +367,16 @@ When the request is acknowledged by CEMS, the display shows `HELP IS COMING`, an
 ### CEMS Override Mode
 URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 
-<kbd>s</kbd>: Change to STABLE mode.
-<kbd>m</kbd>: Change to MONITOR mode.
+<kbd>s</kbd>: Change to STABLE mode.<br>
+<kbd>m</kbd>: Change to MONITOR mode.<br>
 <kbd>e</kbd>: Acknowledge EMERGENCY mode. Informs URCUTE that help is on its way, so it silences its alarms.
 
-### Use Cases: Elderly Person A
+## Use Cases: Elderly Person A
 0. Caretaker sets up URCUTE and heads back to CEMS HQ.
 - Caretaker straps URCUTE on A and hits the Mode Change (MC) button, also known as `SW4`.
 - The OLED comes to life, showing the word `MONITOR` and environment information.
 
-1. A's wig is on fire
+### 1. A's wig is on fire
 - URCUTE polls temperature every 5 seconds.
 - If the temperature somehow exceeds 45 degrees Celsius, it will begin to blink RED.
 - A warning message `FIRE!` shows up on the screen.
@@ -384,7 +384,7 @@ URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 - Caretaker arrives, hits the MC and URCUTE returns to STABLE mode. He puts out the fire.
 - Before returning to CEMS HQ, he hits the MC. URCUTE returns to MONITOR mode.
 
-2. A is caught moving to the kitchen at night for his milk.
+### 2. A is caught moving to the kitchen at night for his milk.
 - URCUTE polls movement every 1 second, and receives an interrupt when the surrounding lux value falls below 50.
 - If so, it will begin to blink BLUE.
 - A warning message `DARK!` shows up on the screen.
@@ -393,7 +393,7 @@ URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 - Caretaker hits the MC and URCUTE returns to STABLE mode. He scolds A and puts him back in bed.
 - Before returning to CEMS HQ, he hits the MC. URCUTE returns to MONITOR mode. Good night, A!
 
-2. (a) A does not want to be caught during his milk run this time.
+#### 2. (a) A does not want to be caught during his milk run this time.
 - A flicks the Page Integrated Switch Stick (PISS) to Page 2. URCUTE enters NIGHTLIGHT mode.
 - A turns the rotary clockwise to adjust the amount of nightlight through the OLED. Too bright.
 - A adjust the rotary anti-clockwise and reaches the goldilocks zone where it is above 50 lux.
@@ -401,7 +401,7 @@ URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 - By the way, how would he go about licensing this technology? He flicks the PISS again, to Page 1.
 - URCUTE tells him to look for `Arrchana`.
 
-3. A is sleepwalking and knocks over a candle. The carpet catches fire.
+### 3. A is sleepwalking and knocks over a candle. The carpet catches fire.
 - URCUTE notices that there is both a fire and movement in darkness.
 - It begins to blink RED and BLUE simultaneously.
 - CEMS is notified every 5 seconds.
@@ -411,11 +411,11 @@ URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 - Caretaker hits the MC and URCUTE returns to STABLE mode. He puts out the fire, and puts A back in bed.
 - Before returning to CEMS HQ, he hits the MC. URCUTE returns to MONITOR mode. Good night, A!
 
-4. A has fallen off his bed and is unconscious.
+### 4. A has fallen off his bed and is unconscious.
 - URCUTE polls movement every 1 second.
 - If y-value falls below (or above) threshold at 18, it will send a message to CEMS.
 
-5. A notices a stranger at his door. The stranger seems to be holding a suspicious box and a knife.
+### 5. A notices a stranger at his door. The stranger seems to be holding a suspicious box and a knife.
 - A presses the Emergency Response Mode (ERM), otherwise known as `SW3`.
 - CEMS receives A's notification immediately. While A waits for a response, his screen shows a `HELP REQUESTED` message and buzzes loudly so that neighbors can also respond.
 - While doing so, there is no need for any other distractions, so the BLUE and RED lights do not come on.
@@ -423,11 +423,11 @@ URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 - CEMS acknowledges A's notification by pressing <kbd>e</kbd>. They are on their way. A's screen shows 'HELP IS COMING' message and stops buzzing.
 - A goes to his fridge and gets himself a glass of milk.
 
-5. (a) A caretaker has arrived, only to discover that it was another caretaker holding a birthday cake and a plastic knife. It is A's birthday!
+#### 5. (a) A caretaker has arrived, only to discover that it was another caretaker holding a birthday cake and a plastic knife. It is A's birthday!
 - The caretakers hits the MC, returning URCUTE to STABLE state. As expected, all alarms cease to sound or light up.
 - He resolves to use the <kbd>m</kbd> key remotely to silence unnecessary warnings in the future.
 
-5. (b) A's neighbor has a hearing aid which only picks up high pitch sounds.
+#### 5. (b) A's neighbor has a hearing aid which only picks up high pitch sounds.
 - A turns the rotary clockwise to increase the pitch of the emergency buzzer.
 - The neighbor responds and asks A to turn it down because it is hurting her.
 - A turns the rotary anti-clockwise to decrease the pitch of the emergency buzzer.
