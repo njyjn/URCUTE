@@ -89,16 +89,24 @@ volatile emergency_t emergency_flag;
 
 
 /** MISC FLAGS **/
-uint8_t cems_message_counter = 0, blink_blue = 0, blink_red = 0, monitor_firstrun = 0, state = 0, mode_button = 1;
+uint8_t cems_message_counter = 0, blink_blue = 0, blink_red = 0, monitor_firstrun = 0, state = 0, mode_button = 1, reading_mode=0, xW = 0, buzz_first=1;
+int pitch = 2000;
 int pageIndex = 0;
 
 /** INIT PROTOCOLS **/
+
+/**
+ * @brief Used for LED array, accelerometer and light sensor.
+ */
 static void init_i2c(void)
 {
 	PINSEL_CFG_Type PinCfg;
 
-	/* Initialize I2C2 pin connect */
-	PinCfg.Funcnum = 2;
+	/* Initialize I2C2 pin connect*/
+	// LPC uses I2C2 because EA says so
+	// P0.10: SDA2
+	// P0.11: SCL2
+	PinCfg.Funcnum = 2; // when 10
 	PinCfg.Pinnum = 10;
 	PinCfg.Portnum = 0;
 	PINSEL_ConfigPin(&PinCfg);
@@ -106,12 +114,15 @@ static void init_i2c(void)
 	PINSEL_ConfigPin(&PinCfg);
 
 	// Initialize I2C peripheral
-	I2C_Init(LPC_I2C2, 100000);
+	I2C_Init(LPC_I2C2, 100000); // clock rate 100000
 
 	/* Enable I2C1 operation */
 	I2C_Cmd(LPC_I2C2, ENABLE);
 }
 
+/**
+ * @brief Used for 7-seg, OLED
+ */
 static void init_ssp(void)
 {
 	SSP_CFG_Type SSP_ConfigStruct;
@@ -119,10 +130,10 @@ static void init_ssp(void)
 
 	/*
 	 * Initialize SPI pin connect
-	 * P0.7 - SCK;
-	 * P0.8 - MISO
-	 * P0.9 - MOSI
-	 * P2.2 - SSEL - used as GPIO
+	 * P0.7 - SCK: Serial clock
+	 * P0.8 - MISO: Master input
+	 * P0.9 - MOSI: Master output
+	 * P2.2 - SSEL: Slave select - used as GPIO
 	 */
 	PinCfg.Funcnum = 2;
 	PinCfg.OpenDrain = 0;
@@ -193,58 +204,51 @@ static void config_light(void) {
 	light_setIrqInCycles(LIGHT_CYCLE_16); // Used 16 for 4 sec activation time.
 	light_clearIrqStatus();
 	LPC_GPIOINT->IO2IntClr = 1 << 5;
-	LPC_GPIOINT->IO2IntEnF |= 1 << 5; // light sensor
+	LPC_GPIOINT->IO2IntEnF |= 1 << 5; // enable falling edge interrupt for P2.5 (irq_out for light sensor)
 }
 /* ==================== END LIGHT SENSOR CONFIG */
 
 /** INIT UART **/
 void pinsel_uart3(void){
-    PINSEL_CFG_Type PinCfg;
-    PinCfg.Funcnum = 2;
-    PinCfg.Pinnum = 0;
-    PinCfg.Portnum = 0;
-    PINSEL_ConfigPin(&PinCfg);
-    PinCfg.Pinnum = 1;
-    PINSEL_ConfigPin(&PinCfg);
+	// P0.0: uart1tx
+	// P0.1: uart1rx
+	PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 2;
+	PinCfg.Pinnum = 0;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 1;
+	PINSEL_ConfigPin(&PinCfg);
 }
 
 void init_uart(void){
-    UART_CFG_Type uartCfg;
-    uartCfg.Baud_rate = 115200;
-    uartCfg.Databits = UART_DATABIT_8;
-    uartCfg.Parity = UART_PARITY_NONE;
-    uartCfg.Stopbits = UART_STOPBIT_1;
-    //pin select for uart3;
-    pinsel_uart3();
-    //supply power & setup working parameters for uart3
-    UART_Init(LPC_UART3, &uartCfg);
-    //enable transmit for uart3
-    UART_TxCmd(LPC_UART3, ENABLE);
+	UART_CFG_Type uartCfg;
+	uartCfg.Baud_rate = 115200;
+	uartCfg.Databits = UART_DATABIT_8;
+	uartCfg.Parity = UART_PARITY_NONE;
+	uartCfg.Stopbits = UART_STOPBIT_1;
+	pinsel_uart3();	//pin select for uart3
+	UART_Init(LPC_UART3, &uartCfg); //supply power & setup working parameters for uart3
+	UART_TxCmd(LPC_UART3, ENABLE); //enable transmit for uart3
 }
-
 /* ==================== END INIT UART */
 
 /**
  * @brief Send a string to CEMS (UART).
  */
 static void sendToCems(unsigned char *string) {
-	// Send to Cems
-//	uart2_sendString("Opening connection...");
-//	uart2_sendString(string);
 	UART_Send(LPC_UART3, (uint8_t *) string, strlen(string), BLOCKING);
-	printf(string);
 }
 
 /** INTERRUPT HANDLERS **/
-
 void eint_init(void) {
 	// Enable EINT3 interrupt
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
-	NVIC_SetPriority(EINT3_IRQn, 2);
+	NVIC_SetPriority(EINT3_IRQn, 2); // Light has higher priority than button.
 	NVIC_EnableIRQ(EINT3_IRQn);
 
 	// Enable EINT0 interrupt with SW3
-	LPC_SC->EXTINT = 1; // Clear existing interrupts
+	LPC_SC->EXTINT = 1; // Clear existing interrupts.
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
 	NVIC_SetPriority(EINT0_IRQn, 1);
 	NVIC_EnableIRQ(EINT0_IRQn);
@@ -252,23 +256,25 @@ void eint_init(void) {
 
 // EINT3 Interrupt Handler
 void EINT3_IRQHandler(void) {
-	// Determine whether GPIO Interrupt P2.5 has occurred (LIGHT SENSOR)
+	// Determine whether GPIO Interrupt P2.5 has occurred (LIGHT SENSOR) by checking pin
 	if ((LPC_GPIOINT->IO2IntStatF>>5)& 0x1) {
 		light_flag = LIGHT_LOW;
-		LPC_GPIOINT->IO2IntClr = (1<<5);
+		LPC_GPIOINT->IO2IntClr = (1<<5); // Clear the interrupt register
+		light_clearIrqStatus(); // Clear IRQ otherwise the interrupt will never be issued again.
 	}
 }
 
 // EINT0 Interrupt Handler (for SW3)
 void EINT0_IRQHandler(void)
 {
+	// Raise emergency flag only if there is already no emergency, and in monitor mode.
 	if (mode == MODE_MONITOR && emergency_flag == EMER_NO) {
 		emergency_flag = EMER_RAISED;
 	}
-    // Clear EINT0
-    LPC_SC->EXTINT = (1<<0);
+	// Clear EINT0 (otherwise interrupt will hang the entire system)
+	// Write 1 to bit value 0 (EINTx) because it is active low.
+	LPC_SC->EXTINT = (1<<0);
 }
-
 /* ==================== END INTERRUPT HANDLERS */
 
 /** MOVEMENT LOGIC **/
@@ -278,7 +284,10 @@ void isMovementInDarkDetected(uint8_t threshold) {
 	}
 }
 
-/** FALL LOGIC **/
+/**
+ * FALL LOGIC
+ * @brief Serious falls are when the y value changes drastically.
+ */
 void isFallDetected(uint8_t threshold) {
 	if (abs(y - yLast) >= threshold) {
 		fall = FALL_DETECTED;
