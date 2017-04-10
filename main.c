@@ -300,7 +300,7 @@ static void sampleAcc() {
 	y = y + yoff;
 	z = z + zoff;
 	isMovementInDarkDetected(10);
-	isFallDetected(30);
+	isFallDetected(18);
 }
 /* ==================== END MOVEMENT LOGIC */
 
@@ -308,17 +308,17 @@ static void sampleAcc() {
  * @brief Samples the environment for temp, lux and acc, then prints to OLED. If SEND is specified, send to UART.
  */
 static void sampleEnvironmentAnd(sample_mode_t sample_mode) {
-	unsigned char temp[100] = "", lux[100] = "", acc[100] = "", warning[100] = "";
+	unsigned char temp[15] = "", lux[15] = "", acc[15] = "", warning[50] = "";
 
 	float temperature  = temp_read()/10.0;
-	if (temperature >= 25)
+	if (temperature >= 45)
 		blink_red = 1;
 
 	int light = light_read();
 
 	if (sample_mode == SEND) {
 		// NNN_-_T*****_L*****_AX*****_AY*****_AZ*****\r\n
-		unsigned char string[100] = "";
+		unsigned char string[50] = "";
 		sprintf(string, "%03d_-_T%05.1f_L%05d_AX%05d_AY%05d_AZ%05d\r\n",cems_message_counter++,temperature,light,x,y,z);
 		if (blink_red)
 			sendToCems("Fire was Detected.\r\n");
