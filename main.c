@@ -31,21 +31,21 @@
 volatile uint32_t msTicks = 0;
 
 void SysTick_Handler(void) {
-   msTicks++;
+	msTicks++;
 }
 
 uint32_t getTicks(void) {
-   return msTicks;
+	return msTicks;
 }
 
 int timesUpOrNot(uint32_t startTicks, int delayInMs) {
-   return (getTicks() - startTicks) >= delayInMs;
+	return (getTicks() - startTicks) >= delayInMs;
 }
 /* ==================== END TIMER */
 
 /** SEVEN SEGMENT DISPLAY **/
 const uint8_t sevenSegChars[] = {
-	'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
+		'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
 };
 
 /** ACCELEROMETER **/
@@ -53,7 +53,7 @@ int8_t x = 0, y = 0, z = 0, xoff = 0, yoff = 0, zoff = 0, xLast = 0, yLast = 0, 
 
 /** SYS_MODE **/
 typedef enum {
-    MODE_STABLE, MODE_MONITOR
+	MODE_STABLE, MODE_MONITOR
 } system_mode_t;
 volatile system_mode_t mode;
 
