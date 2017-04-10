@@ -21,6 +21,7 @@
 #include "rgb.h"
 #include "led7seg.h"
 #include "uart2.h"
+#include "rotary.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -148,29 +149,40 @@ static void init_ssp(void)
 
 }
 
- static void init_GPIO(void) {
-	//Initialize button sw4
+/**
+ * @brief Used for SW4, SW3, speaker, temperature sensor
+ */
+static void init_GPIO(void) {
+	//Initialize button sw4 (GPIO interrupt)
 	PINSEL_CFG_Type PinCfg;
-    PinCfg.Funcnum = 0;
-    PinCfg.OpenDrain = 0;
-    PinCfg.Pinmode = 0;
-    PinCfg.Portnum = 1;
-    PinCfg.Pinnum = 31;
-    PINSEL_ConfigPin(&PinCfg);
-    GPIO_SetDir(1, 1<<31, 0);
+	PinCfg.Funcnum = 0; // Using normal GPIO setting for P1.31 when 00.
+	PinCfg.OpenDrain = 0; // PUN
+	PinCfg.Pinmode = 0; // PUN
+	PinCfg.Portnum = 1;
+	PinCfg.Pinnum = 31;
+	PINSEL_ConfigPin(&PinCfg);
+	GPIO_SetDir(1, 1<<31, 0); // Set input mode
 
-	//Initialize button sw3
-	PinCfg.Funcnum = 1; // Using EINT0
-	PinCfg.OpenDrain = 0;
-	PinCfg.Pinmode = 0;
+	//Initialize button sw3 (Interrupt)
+	PinCfg.Funcnum = 1; // Using EINT0: P2.10 is EINT0 when 01.
+	PinCfg.OpenDrain = 0; // PUN
+	PinCfg.Pinmode = 0; // PUN
 	PinCfg.Portnum = 2;
 	PinCfg.Pinnum = 10;
 	PINSEL_ConfigPin(&PinCfg);
-	GPIO_SetDir(2, 1 << 10, 0);
- }
- /* ==================== END INIT PROTOCOLS */
+	GPIO_SetDir(2, 1 << 10, 0); // Set input mode
 
- /** LIGHT SENSOR CONFIG **/
+	//Initialize buzzer
+	GPIO_SetDir(0, 1<<27, 1);
+	GPIO_SetDir(0, 1<<28, 1);
+	GPIO_SetDir(2, 1<<13, 1);
+	GPIO_ClearValue(0, 1<<27);
+	GPIO_ClearValue(0, 1<<28);
+	GPIO_ClearValue(2, 1<<13);
+}
+/* ==================== END INIT PROTOCOLS */
+
+/** LIGHT SENSOR CONFIG **/
 const uint32_t lightLoLimit = 50, lightHiLimit = 4000;
 
 static void config_light(void) {
@@ -330,37 +342,64 @@ static void sampleEnvironmentAnd(sample_mode_t sample_mode) {
 
 static void changePage(uint8_t joyState)
 {
-    int maxIndex = 3;
+	// Ignore up, down joystates
+	if ((joyState & JOYSTICK_UP) != 0 || (joyState & JOYSTICK_DOWN) != 0) {
+		return;
+	}
 	oled_clearScreen(OLED_COLOR_BLACK);
-    // Reset
-    if ((joyState & JOYSTICK_CENTER) != 0) {
-    	pageIndex = 0;
-    } else if ((joyState & JOYSTICK_RIGHT) != 0) {
-        pageIndex = (pageIndex+1)%3;
-    } else if ((joyState & JOYSTICK_LEFT) != 0) {
-    	pageIndex = (pageIndex+5)%3;
-    }
+	int maxIndex = 3;
 
-    if (pageIndex == 0) {
-    	sampleEnvironmentAnd(PRINT);
-    } else if (pageIndex == 1) {
-    	oled_putString(0,10,"URCUTE v0.1", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-    	oled_putString(0,30,"For licensing", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-    	oled_putString(0,40,"opportunities", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-    	oled_putString(0,50,"contact Arcana.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-    } else if (pageIndex == 2) {
-    	char time[20] = "";
-    	sprintf(time, "Time: %d:%d:%d", RTC_GetTime(LPC_RTC, RTC_TIMETYPE_HOUR),
-    			RTC_GetTime(LPC_RTC, RTC_TIMETYPE_MINUTE),
-				RTC_GetTime(LPC_RTC, RTC_TIMETYPE_SECOND));
-    	oled_putString(0,30,time, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-    }
+	// Reset
+	if ((joyState & JOYSTICK_CENTER) != 0) {
+		pageIndex = 0;
+	} else if ((joyState & JOYSTICK_RIGHT) != 0) {
+		pageIndex = (pageIndex+1)%3;
+	} else if ((joyState & JOYSTICK_LEFT) != 0) {
+		pageIndex = (pageIndex+5)%3;
+	}
+
+	if (pageIndex == 0) {
+		reading_mode = 0;
+		sampleEnvironmentAnd(PRINT);
+	} else if (pageIndex == 1) {
+		reading_mode = 0;
+		oled_putString(0,10,"URCUTE v0.1", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+		oled_putString(0,30,"For licensing", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+		oled_putString(0,40,"contact Arcana.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+	} else if (pageIndex == 2) {
+		reading_mode = 1;
+		oled_putString(0,0, "READING", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+		oled_fillRect(0, 10, xW, OLED_DISPLAY_HEIGHT, OLED_COLOR_WHITE);
+	}
 }
 
-int main (void) {
-    SysTick_Config(SystemCoreClock / 1000);
-    init_i2c();
-    init_ssp();
+#define NOTE_PIN_HIGH() GPIO_SetValue(0, 1<<26)
+#define NOTE_PIN_LOW() GPIO_ClearValue(0, 1<<26)
+
+/**
+ * @brief Turns on the buzzer using PWM. The lower the note 'frequency', the shorter
+ * each of its on/off periods (inversely proportional to frequency) and its the more times it
+ * modulates (proportional to duration), resulting in a higher note.
+ */
+static void playNote(uint32_t note, uint32_t durationMs) {
+	uint32_t t = 0;
+	if (note>0) {
+		while(t<(durationMs*1000)) {
+			NOTE_PIN_HIGH();
+			Timer0_us_Wait(note/2);
+			NOTE_PIN_LOW();
+			Timer0_us_Wait(note/2);
+			t+=note;
+		}
+	} else {
+		Timer0_Wait(durationMs);
+	}
+}
+
+void init() {
+	SysTick_Config(SystemCoreClock / 1000);
+	init_i2c();
+	init_ssp();
 	init_GPIO();
 
 	acc_init();
@@ -373,212 +412,214 @@ int main (void) {
 	config_light();
 
 	temp_init(getTicks);
+	pca9532_init();
+	joystick_init();
+	rgb_init(); // Since green LED interferes with OLED, do not use.
+	oled_init();
+	led7seg_init();
+	init_uart();
+	RTC_Init(LPC_RTC);
+	eint_init();
+	rotary_init();
+}
 
-    pca9532_init();
-    joystick_init();
-    rgb_init(); // Since green LED interferes with OLED, do not use.
-    oled_init();
-    led7seg_init();
-    init_uart();
-    RTC_Init(LPC_RTC);
-    eint_init();
+void reset() {
+	monitor_firstrun = 1; // Toggle first run of monitor mode.
+	pitch = 2000; // Pitch is set to 2000 by default.
+	led7seg_setChar('{',FALSE); // Clear 7SEG display
+	blink_red = 0;	// Clear blink red flag
+	blink_blue = 0;	// Clear blink blue flag
+	light_flag = LIGHT_NORMAL; // Absolve light warning
+	movement = MOVEMENT_NO; // Absolve movement
+	emergency_flag = EMER_NO; // Clear emergency
+	pca9532_setLeds(0, 0xffff); // Clear floodlights
+	GPIO_ClearValue( 2, 1); // Clear red
+	GPIO_ClearValue( 0, (1<<26) ); // Clear blue
+	oled_clearScreen(OLED_COLOR_BLACK); // cls
+}
 
-    uint8_t train = 1, data = 0;
-    uint32_t startTicks = getTicks();
-    uint32_t trainTime = startTicks, redLightTime= startTicks, rgbTime= startTicks, blueLightTime= startTicks, sevenSegTime= startTicks, emergencyTime = startTicks;
+int main (void) {
+	init();
 
-    oled_clearScreen(OLED_COLOR_BLACK); // Initial clear screen
+	uint8_t train = 1, data = 0;
+	uint32_t startTicks = getTicks();
+	uint32_t modeTime=startTicks, trainTime=startTicks, redLightTime= startTicks, rgbTime= startTicks, blueLightTime=startTicks, sevenSegTime=startTicks, emergencyTime=startTicks, buzzerTime=startTicks;
 
-    while (1) {
-    	// Local mode switching by polling SW4
-    	mode_button = GPIO_ReadValue(1) >> 31 & 0x01;
-    	if (mode_button == 0) {
-        	if (mode == MODE_STABLE) {
-        		monitor_firstrun = 1;
-        		mode = MODE_MONITOR;
-        	} else if (mode == MODE_MONITOR) {
-        		printf("Entering STABLE mode.\n");
-        		mode = MODE_STABLE;
-        	}
-        	mode_button = 1;
-    	}
+	oled_clearScreen(OLED_COLOR_BLACK); // Initial clear screen
 
-	    // Wireless mode switching
-	    UART_Receive(LPC_UART3, &data, 1, NONE_BLOCKING);
-    	if (data == 's') {
-	    	mode = MODE_STABLE;
-	    	data = 0;
-	    	sendToCems("\r\nEntering STABLE mode by CEMS.\r\n");
-	    } else if (data == 'm') {
-	    	mode = MODE_MONITOR;
-	    	data = 0;
-	    	sendToCems("\r\nEntering MONITOR mode by CEMS.\r\n");
-	    } else if (data == 'e' && mode == MODE_MONITOR && emergency_flag == EMER_WAIT) {
-	    	emergency_flag = EMER_RESOLVED;
-	    	data = 0;
-	    	sendToCems("\r\nCEMS responding to emergency...\r\n");
-	    }
+	while (1) {
+		// Local mode switching by polling SW4 at P1.31
+		if (timesUpOrNot(modeTime, 500)) {
+			mode_button = GPIO_ReadValue(1) >> 31 & 0x01;
+			if (mode_button == 0) {
+				if (mode == MODE_STABLE) {
+					reset();
+					mode = MODE_MONITOR;
+				} else if (mode == MODE_MONITOR) {
+					printf("Entering STABLE mode.\n");
+					mode = MODE_STABLE;
+				}
+				mode_button = 1;
+			}
+			modeTime = getTicks();
+		}
 
-    	switch (mode) {
-    	case MODE_STABLE:
-    		led7seg_setChar('{',FALSE); // Clear 7SEG display
-    		blink_red = 0;	// Clear blink red flag
-    		blink_blue = 0;	// Clear blink blue flag
-    		light_flag = LIGHT_NORMAL; // Absolve light warning
-    		movement = MOVEMENT_NO; // Absolve movement
-    		emergency_flag = EMER_NO; // Clear emergency
-    		pca9532_setLeds(0, 0xffff); // Clear floodlights
-            GPIO_ClearValue( 2, 1); // Clear red
-            GPIO_ClearValue( 0, (1<<26) ); // Clear blue
-    		oled_clearScreen(OLED_COLOR_BLACK); // cls
-    		break;
+		// Wireless mode switching
+		UART_Receive(LPC_UART3, &data, 1, NONE_BLOCKING);
+		if (data == 's') {
+			mode = MODE_STABLE;
+			data = 0;
+			sendToCems("\r\nEntering STABLE mode by CEMS.\r\n");
+		} else if (data == 'm') {
+			mode = MODE_MONITOR;
+			data = 0;
+			sendToCems("\r\nEntering MONITOR mode by CEMS.\r\n");
+		} else if (data == 'e' && mode == MODE_MONITOR && emergency_flag == EMER_WAIT) {
+			emergency_flag = EMER_RESOLVED;
+			data = 0;
+			sendToCems("\r\nCEMS responding to emergency...\r\n");
+		}
 
-    	/**
-    	 * MONITOR MODE: In monitor mode,
-    	 * 1) Time is tracked and output in BASE 16 to the seven segment display.
-    	 * 2) Acceleration is sampled every second
-    	 * 3) Environment vars (Temperature, Light, Movement) is sampled and sent to UART every 5 seconds.
-    	 * 4) Monitors for movement in darkness (interrupt) or fire (through sample).
-    	 *
-    	 * # Assumes that the time tracked on SSD is reflective of real time.
-    	 *
-    	 * Enhancements:
-    	 * 1) Emergency override
-    	 */
-    	case MODE_MONITOR:
-    		if (monitor_firstrun) {
-        		oled_putString(0,0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK); // Set MONITOR on graphics display
-    			sendToCems("Entering MONITOR mode.\r\n");
-    			monitor_firstrun = 0;
-    		}
+		switch (mode) {
+		case MODE_STABLE:
+			reset();
+			break;
 
-    		if (emergency_flag == EMER_RAISED) {
-    			sendToCems("[MANUAL OVERRIDE] EMERGENCY ASSISTANCE REQUESTED!\r\n");
-    			emergency_flag = EMER_WAIT;
-    		} else if (emergency_flag == EMER_WAIT) {
-    			oled_putString(0,55, "HELP REQUESTED.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-    		}
+		case MODE_MONITOR:
+			if (monitor_firstrun) {
+				oled_putString(0,0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK); // Set MONITOR on graphics display
+				sendToCems("Entering MONITOR mode.\r\n");
+				monitor_firstrun = 0;
+				pageIndex = 0;
+			}
 
-    		// PRINT PAGE NUMBER
-            unsigned char index[1] = "";
-            sprintf(index, "%d", pageIndex);
-            oled_putString(50,0,index, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+			if (emergency_flag == EMER_RAISED) {
+				sendToCems("[MANUAL OVERRIDE] EMERGENCY ASSISTANCE REQUESTED!\r\n");
+				emergency_flag = EMER_WAIT;
+			} else if (emergency_flag == EMER_WAIT) {
+				oled_putString(0,55, "HELP REQUESTED.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+			}
 
-    		if (timesUpOrNot(sevenSegTime, 1000)) { // 1s period
-            	// Sample acceleration
-            	sampleAcc();
-            	// SSEG display increments by 1 per second (SSP/SSI)
-            	static int cycler = 16;
-                led7seg_setChar(sevenSegChars[++cycler%16], FALSE);
-                // Sample the environment every 5 seconds.
-            	if (cycler%16 == 5 || cycler%16 == 10) {
-            		sampleEnvironmentAnd(PRINT);
-            	}
-            	if (cycler%16 == 15) {
-            		// Send samples to SEMS
-            		sampleEnvironmentAnd(SEND);
-            	}
-                sevenSegTime = getTicks();
-            }
+			// PRINT PAGE NUMBER
+			unsigned char index[1] = "";
+			sprintf(index, "%d", pageIndex);
+			oled_putString(50,0,index, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 
-            // Blink both LEDs for fire detection and movement in the dark (synchronous).
-            if (blink_red == 1 && blink_blue == 1) {
-                if (timesUpOrNot(rgbTime, 333)) {
-                	pca9532_setLeds(0xffff, 0); // Flash floodlights on
-                	GPIO_SetValue( 2, 1); // Red first
-                	GPIO_ClearValue( 0, (1<<26)); // Clear blue
-                }
-                if (timesUpOrNot(rgbTime, 666)) {
-                	pca9532_setLeds(0, 0xffff); // Flash floodlights off
-                	GPIO_ClearValue( 2, 1); // Clear red
-                    GPIO_SetValue( 0, (1<<26)); // Set blue
-                    rgbTime = getTicks();
-            	}
-            } else if (blink_blue == 1) { // Blink BLUE LED for movement in the dark.
-            	pca9532_setLeds(0xffff, 0); // On floodlights
-            	if (timesUpOrNot(rgbTime, 333))
-                	GPIO_SetValue( 0, (1<<26));
-                if (timesUpOrNot(rgbTime, 666)) {
-                	GPIO_ClearValue( 0, (1<<26));
-                	rgbTime = getTicks();
-                }
-            } else if (blink_red == 1) { // Blink RED LED for fire detection.
-                if (timesUpOrNot(rgbTime, 333))
-                	GPIO_SetValue( 2, 1);
-                if (timesUpOrNot(rgbTime, 666)) {
-                	GPIO_ClearValue( 2, 1);
-                	rgbTime = getTicks();
-                }
-            }
+			if (timesUpOrNot(sevenSegTime, 1000)) { // 1s period
+				// Sample acceleration
+				sampleAcc();
+				// SSEG display increments by 1 per second (SSP/SSI)
+				static int cycler = 16;
+				led7seg_setChar(sevenSegChars[++cycler%16], FALSE);
+				// Sample the environment every 5 seconds.
+				if (cycler%16 == 5 || cycler%16 == 10) {
+					sampleEnvironmentAnd(PRINT);
+				}
+				if (cycler%16 == 15) {
+					// Send samples to SEMS
+					sampleEnvironmentAnd(SEND);
+				}
+				sevenSegTime = getTicks();
+			}
 
-            // Joystick page control
-            if (timesUpOrNot(trainTime, 250)) {
-            	state = joystick_read();
-            	if (state != 0) {
-            		changePage(state);
-            	}
-            	trainTime = getTicks();
-            }
+			// Blink both LEDs for fire detection and movement in the dark (synchronous).
+			// Note that we set the pins individually and do not use RGB library because
+			// green LED clashes with OLED.
+			// Red is P2.0, Blue is P0.26
+			if (blink_red == 1 && blink_blue == 1) {
+				if (timesUpOrNot(rgbTime, 333)) {
+					pca9532_setLeds(0xffff, 0); // Flash floodlights on
+					GPIO_SetValue( 2, 1); // Red first
+					GPIO_ClearValue( 0, (1<<26)); // Clear blue
+				}
+				if (timesUpOrNot(rgbTime, 666)) {
+					pca9532_setLeds(0, 0xffff); // Flash floodlights off
+					GPIO_ClearValue( 2, 1); // Clear red
+					GPIO_SetValue( 0, (1<<26)); // Set blue
+					rgbTime = getTicks();
+				}
+			} else if (blink_blue == 1) { // Blink BLUE LED for movement in the dark.
+				pca9532_setLeds(0xffff, 0); // On floodlights
+				if (timesUpOrNot(rgbTime, 333))
+					GPIO_SetValue( 0, (1<<26));
+				if (timesUpOrNot(rgbTime, 666)) {
+					GPIO_ClearValue( 0, (1<<26));
+					rgbTime = getTicks();
+				}
+			} else if (blink_red == 1) { // Blink RED LED for fire detection.
+				if (timesUpOrNot(rgbTime, 333))
+					GPIO_SetValue( 2, 1);
+				if (timesUpOrNot(rgbTime, 666)) {
+					GPIO_ClearValue( 2, 1);
+					rgbTime = getTicks();
+				}
+			}
 
-//	    if (timesUpOrNot(emergencyTime, 1000)) {
-//            emergency_button = GPIO_ReadValue(1) >> 31 & 0x01;
-//            if (emergency_button == 0 && emergency_flag == EMER_NO) {
-//            	pca9532_setBlink0Period(151);
-//            	pca9532_setBlink0Duty(100);
-//            	pca9532_setBlink0Leds(0xffff); // Check this function
-//            	sendToCems("[MANUAL OVERRIDE] EMERGENCY ASSISTANCE REQUESTED!\r\n");
-//        		oled_putString(0,55, "HELP REQUESTED.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//            	emergency_flag = EMER_RAISED;
-//            	emergency_button = 1;
-//            }
-//	    }
+			// Joystick page control
+			if (timesUpOrNot(trainTime, 250)) {
+				state = joystick_read();
+				if (state != 0 && emergency_flag != EMER_WAIT) {
+					changePage(state);
+				}
+				trainTime = getTicks();
+			}
 
-//        // 4. Allow the speaker (GPIO) to toggle between making a continuous buzzing sound, and no buzzing sound, when SW4 (GPIO) is pressed.
-//        // Note: Avoid loud and frustrating sounds
-//        // Includes debouncing
-//        if (timesUpOrNot(buttonTime, 500)) {
-//        	btn1 = (GPIO_ReadValue(1) >> 31) & 0x01;
-//        	if (btn1 == 0) {
-//        		buzzState = !buzzState;
-//        	}
-//        	buttonTime = getTicks();
-//        }
-//    	if (buzzState) {
-//    		buzz();
-//    	}
-//
-//    	// 4. Read the accelerometer (I2C) in polling mode
-//    	if (timesUpOrNot(accTime, 1000)) {
-//    		acc_read(&x, &y, &z);
-//    		x = x+xoff;
-//    		y = y+yoff;
-//    		z = z+zoff;
-//    		uint8_t string[] = {x,'x',y,'y',z,'z'};
-//    		oled_putString(0,10, string, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//    		accTime = getTicks();
-//    	}
-//
-//    	// 5. Read the light sensor (I2C) in polling mode
-//    	if (timesUpOrNot(lightTime, 1000)) {
-//    	    		int light = light_read();
-//    	    		oled_putString(0,20,light, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//    	    		lightTime = getTicks();
-//    	}
-//
-//    	// 6. Read the temperature sensor (GPIO) in polling mode
-//    	if (timesUpOrNot(tempTime, 100000)) {
-//    	    		oled_putString(0,30,temp_read(), OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//    	    		tempTime = getTicks();
-//    	}
-//
-//    	// 7. Display required words on the 96x64 White OLED (SPI/SSP)
-//    	if (timesUpOrNot(guiTime, 100)) {
-//    		oled_putString(0,0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
-//    		guiTime = getTicks();
-//    	}
-        break;
-    	}
-    }
+			// Rotary controls for
+			// 1) Buzzer tone modification
+			// 2) Reading light brightness adjust
+			uint8_t rotaryState = rotary_read();
+			if (reading_mode == 0 && rotaryState!=ROTARY_WAIT) {
+				if (rotaryState == ROTARY_RIGHT) {
+					pitch -= 300;
+					if (pitch <= 100) {
+						pitch = 100;
+					}
+				} else if (rotaryState == ROTARY_LEFT) {
+					pitch += 300;
+					if (pitch >= 3000) {
+						pitch = 3000;
+					}
+				}
+			}
+
+			// Play buzzer if emergency requested.
+			// The blinking of blink_blue and blink_red ceases in this mode
+			// and page defaults to 0.
+			if (timesUpOrNot(buzzerTime, 1000) && emergency_flag == EMER_WAIT) {
+				buzz_first = 0;
+				blink_red = 0;
+				blink_blue = 0;
+				playNote(pitch, 500);
+				Timer0_Wait(1);
+				buzzerTime = getTicks();
+			}
+
+			// Back to main page if emergency triggered.
+			if ((pageIndex == 1 || pageIndex == 2) && emergency_flag == EMER_WAIT) {
+				reading_mode = 0;
+				changePage(0x01);
+			}
+
+			// If not in emergency mode, the rotary is enabled to adjust reading mode brightness.
+			if (reading_mode == 1 && rotaryState != ROTARY_WAIT) {
+				if (rotaryState == ROTARY_RIGHT) {
+					xW = xW + 6;
+					if (xW > OLED_DISPLAY_WIDTH) {
+						xW = OLED_DISPLAY_WIDTH;
+					}
+				} else if (rotaryState == ROTARY_LEFT) {
+					xW = xW - 6;
+					if (xW < 6) {
+						xW = 6;
+					}
+				}
+				oled_clearScreen(OLED_COLOR_BLACK);
+				oled_putString(0,0,"READING", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				oled_fillRect(0, 10, xW, OLED_DISPLAY_HEIGHT, OLED_COLOR_WHITE);
+			}
+			break;
+		}
+	}
 }
 
 void check_failed(uint8_t *file, uint32_t line)
