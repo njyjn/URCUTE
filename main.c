@@ -183,11 +183,11 @@ static void init_GPIO(void) {
 	PINSEL_ConfigPin(&PinCfg);
 	GPIO_SetDir(2, 1 << 10, 0); // Set input mode
 
-	//Initialize buzzer
-	GPIO_SetDir(0, 1<<27, 1);
-	GPIO_SetDir(0, 1<<28, 1);
-	GPIO_SetDir(2, 1<<13, 1);
-	GPIO_ClearValue(0, 1<<27);
+	//Initialize buzzer (PWMs)
+	GPIO_SetDir(0, 1<<27, 1); // SP-CLK / LM4811-clk
+	GPIO_SetDir(0, 1<<28, 1); // SP-UP/DOWN / LM4811-up/dn
+	GPIO_SetDir(2, 1<<13, 1); // RGB BLUE or LM4811-shutdn
+	GPIO_ClearValue(0, 1<<27); // Set output mode
 	GPIO_ClearValue(0, 1<<28);
 	GPIO_ClearValue(2, 1<<13);
 }
