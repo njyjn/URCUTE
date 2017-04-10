@@ -7,6 +7,8 @@ URCUTE is designed for the elderly person who wholly entrusts their care to a a 
 ## Modes
 URCUTE has two basic modes: [STABLE](#stable-mode) and [MONITOR](#monitor-mode), two enhanced modes: [NIGHT](#night-mode) and [EMERGENCY](#emergency-mode), and one quasi-mode: [CEMS OVERRIDE](#cems-override-mode).
 
+To view use cases, teleport [there](#use-cases-elderly-person-a).
+
 ### Stable Mode
 Stable mode is to be used in the presence of a caretaker. There is no environment sampling, no information displayed on the screen, and no emergency warnings.
 
