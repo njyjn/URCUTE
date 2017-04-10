@@ -377,7 +377,7 @@ static void changePage(uint8_t joyState)
 		oled_putString(0,40,"contact Arcana.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 	} else if (pageIndex == 2) {
 		reading_mode = 1;
-		oled_putString(0,0, "READING", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+		oled_putString(0,0, "NIGHT", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 		oled_fillRect(0, 10, xW, OLED_DISPLAY_HEIGHT, OLED_COLOR_WHITE);
 	}
 }
