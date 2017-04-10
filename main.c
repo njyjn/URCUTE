@@ -334,7 +334,7 @@ static void sampleEnvironmentAnd(sample_mode_t sample_mode) {
 		sprintf(temp, "%.1f degrees C\r", temperature);
 		sprintf(lux, "%d lux", light);
 		sprintf(acc, "%dx, %dy, %dz\r", x,y,z);
-		sprintf(warning, "%s%c%s", blink_red?"FIRE!":"", blink_red&&blink_blue?"":"", blink_blue?"DARK!":"");
+		sprintf(warning, "%s", blink_red?"FIRE!":blink_blue?"DARK!":blink_red&&blink_blue?"FIRE! DARK!":" ");
 		oled_clearScreen(OLED_COLOR_BLACK);
 		oled_putString(0,0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 		oled_putString(0,10, warning, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
