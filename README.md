@@ -5,17 +5,17 @@ Unnecessarily Redundant Care Unit for The Elderly (CUTE) is a variation of EE202
 URCUTE is designed for the elderly person who wholly entrusts their care to a a Central Elderly Monitoring System (CEMS).
 
 ## Modes
-URCUTE has two modes: STABLE and MONITOR.
+URCUTE has two basic modes: [STABLE](#stable-mode) and [MONITOR](#monitor-mode), two enhanced modes: [NIGHT](#night-mode) and [EMERGENCY](#emergency-mode), and one quasi-mode: [CEMS OVERRIDE](#cems-override-mode).
 
 ### Stable Mode
 Stable mode is to be used in the presence of a caretaker. There is no environment sampling, no information displayed on the screen, and no emergency warnings.
 
-Stable mode is also the first mode that URCUTE boots into. The boot process is highlighted below. Click [here](#MonitorMode) to skip to Monitor Mode.
+Stable mode is also the first mode that URCUTE boots into. The boot process is highlighted below. Click [here](#monitor-mode) to skip to **Monitor Mode**.
 
+#### Initialization
 The system initializes the clock, I2C, SPI/SSP and GPIO.
 
 `I2C` is used for the LED array, accelerometer and light sensor. As per EA's specifications, the system uses the `I2C2` interface, which takes `P0.10` and `P0.11` as `SDA2` and `SCL2` respectively. For this, we set them to use `Funcnum = 2`, which activates I2C.
-
 ```
 static void init_i2c(void)
 {
@@ -31,7 +31,7 @@ static void init_i2c(void)
 }
 ```
 
-`GPIO` is used for SW4, SW3 buttons, the buzzer and the temperature sensor. The following sections of code initializes the buttons SW3 (`P2.10`) and SW4 (`P1.31`), and the buzzer (`P2.13`).
+`GPIO` is used for `SW4`, `SW3` buttons, the buzzer and the temperature sensor. The following sections of code initializes the buttons `SW3` (`P2.10`) and `SW4` (`P1.31`), and the buzzer (`P2.13`).
 ```
 static void init_GPIO(void) {
 	//Initialize button sw4 (GPIO interrupt)
@@ -63,7 +63,7 @@ if (timesUpOrNot(modeTime, 500)) {
 }
 ```
 
-`SW3` employs EINT0 (`P2.10`) instead of polling, unlike `SW4`. (This is because `SW4` is on Port 1 where EINT0 is not supported.) To do so we must set `FuncNum` to 1.
+`SW3` employs EINT0 (`P2.10`) instead of polling, unlike `SW4`. (This is because `SW4` is on Port 1 where EINT0 is not supported.) To do so we must set `FuncNum = 1`.
 ```
 	//Initialize button sw3 (Interrupt)
 	PinCfg.Funcnum = 1; // Using EINT0: P2.10 is EINT0 when 01.
@@ -75,7 +75,7 @@ if (timesUpOrNot(modeTime, 500)) {
 	GPIO_SetDir(2, 1 << 10, 0); // Set input mode
 ```
 
-Of note is that the buzzer (LM4811-shutdown) and the RGB BLUE LED share the same pin `P2.13`.
+Of note is that the buzzer (`LM4811-shutdown`) and the RGB BLUE LED share the same pin `P2.13`.
 ```
 	//Initialize buzzer (Speaker-Amplifier PWMs)
 	GPIO_SetDir(0, 1<<27, 1); // SP-CLK / LM4811-clk
@@ -177,9 +177,9 @@ void isFallDetected(uint8_t threshold) {
 }
 ```
 
-The appropriate LEDs blink according to the emergency accorded.
+The appropriate LEDs blink according to the emergency accorded:
 
-RED during a fire,
+**RED** during a fire,
 ```
 if (blink_red == 1) { // Blink RED LED for fire detection.
 				if (timesUpOrNot(rgbTime, 333))
@@ -190,7 +190,7 @@ if (blink_red == 1) { // Blink RED LED for fire detection.
 				}
 ```
 
-BLUE during movement in the dark (The 16-LEDs also all turn on)
+**BLUE** during movement in the dark (The 16-LEDs also all turn on)
 ```
 if (blink_blue == 1) { // Blink BLUE LED for movement in the dark.
 				pca9532_setLeds(0xffff, 0); // On floodlights
@@ -203,7 +203,7 @@ if (blink_blue == 1) { // Blink BLUE LED for movement in the dark.
 ```
 
 
-and both RED and BLUE when both have occurred (Also, the 16-LEDs all blink)
+and both **RED** and **BLUE** when both have occurred (Also, the 16-LEDs all blink)
 ```
 if (blink_red == 1 && blink_blue == 1) {
 				if (timesUpOrNot(rgbTime, 333)) {
@@ -221,8 +221,54 @@ if (blink_red == 1 && blink_blue == 1) {
 
 The LEDs do not turn off until a caretaker is present and MODE change `SW4` is pressed.
 
+#### Pages
+URCUTE supports three different pages in **MONITOR** mode:
+
+0. Main: Displays sampled environment information, updated every 5s.
+- `MONITOR   0` is displayed at the top at all times.
+1. Information
+- `1` is displayed at the top at all times.
+2. Nightmode
+- `NIGHT     2` is displayed at the top at all times.
+
+```
+static void changePage(uint8_t joyState)
+{
+	// Ignore up, down joystates
+	if ((joyState & JOYSTICK_UP) != 0 || (joyState & JOYSTICK_DOWN) != 0) {
+		return;
+	}
+	oled_clearScreen(OLED_COLOR_BLACK);
+	int maxIndex = 3;
+
+	// Reset
+	if ((joyState & JOYSTICK_CENTER) != 0) {
+		pageIndex = 0;
+	} else if ((joyState & JOYSTICK_RIGHT) != 0) {
+		pageIndex = (pageIndex+1)%3;
+	} else if ((joyState & JOYSTICK_LEFT) != 0) {
+		pageIndex = (pageIndex+5)%3;
+	}
+
+  if (pageIndex == 0) {
+  reading_mode = 0;
+  sampleEnvironmentAnd(PRINT);
+} else if (pageIndex == 1) {
+  reading_mode = 0;
+  oled_putString(0,10,"URCUTE v0.1", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+  oled_putString(0,30,"For licensing", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+  oled_putString(0,40,"contact Arcana.", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+} else if (pageIndex == 2) {
+  reading_mode = 1;
+  oled_putString(0,0, "NIGHT", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+  oled_fillRect(0, 10, xW, OLED_DISPLAY_HEIGHT, OLED_COLOR_WHITE);
+}
+```
+
 ### Night Mode
-At any time, URCUTE is able to act as a nightlight to facilitate safe movement in the dark. The nightlight is able to be adjusted using the included rotary dial. When the joystick is flicked left or right to Page 2, NIGHT mode is activated. Furthermore, turning the rotary adjusts the brightness of the OLED accordingly:
+At any time, URCUTE is able to act as a nightlight to facilitate safe movement in the dark. The nightlight is able to be adjusted using the included rotary dial.
+
+Furthermore, turning the rotary adjusts the brightness of the OLED accordingly:
 ```
 if (reading_mode == 1 && rotaryState != ROTARY_WAIT) {
   if (rotaryState == ROTARY_RIGHT) {
@@ -240,11 +286,10 @@ if (reading_mode == 1 && rotaryState != ROTARY_WAIT) {
   oled_putString(0,0,"READING", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
   oled_fillRect(0, 10, xW, OLED_DISPLAY_HEIGHT, OLED_COLOR_WHITE);
 }
-break;
 ```
 
 ### Emergency Mode
-URCUTE is able to interface with the CEMS HQ in case the user needs urgent assistance. When the Emergency Request Maker (ERM), or `SW3` is pressed, it sends a message to CEMS. Once CEMS receives it successfully, the screen shows the message `HELP REQUESTED.`
+URCUTE is able to interface with the CEMS HQ in case the user needs urgent assistance. When `SW3` is pressed, it sends a message to CEMS. Once CEMS receives it successfully, the screen shows the message `HELP REQUESTED.`
 ```
 if (emergency_flag == EMER_RAISED) {
   sendToCems("[MANUAL OVERRIDE] EMERGENCY ASSISTANCE REQUESTED!\r\n");
@@ -254,8 +299,7 @@ if (emergency_flag == EMER_RAISED) {
 }
 ```
 
-Until the request is acknowledged, the buzzer buzzes for half a second per second. Note that in this mode, the RED led does not blink, while the BLUE led does not blink normally, even if there are pending FIRE or DARK flags.
-
+Until the request is acknowledged, the buzzer buzzes for half a second per second. Note that in this mode, the **RED** led does not blink, while the **BLUE** led does not blink normally, even if there are pending **FIRE** or **DARK** flags.
 ```
 // The blinking of blink_blue and blink_red ceases in this mode
 // and page defaults to 0.
@@ -308,13 +352,15 @@ if (reading_mode == 0 && rotaryState!=ROTARY_WAIT) {
 }
 ```
 
-Whenever this mode is triggered, the page shown on the OLED returns to Page 0, and the rotary is deactivated for Page 2 (NIGHTLIGHT).
+Whenever this mode is triggered, the page shown on the OLED returns to Page 0, and the joystick, rotary is deactivated for Page 2 (NIGHTLIGHT).
 ```
 if ((pageIndex == 1 || pageIndex == 2) && emergency_flag == EMER_WAIT) {
   reading_mode = 0;
   changePage(0x01);
 }
 ```
+
+When the request is acknowledged by CEMS, the display shows `HELP IS COMING`, and the buzzer switches off.
 
 ### CEMS Override Mode
 URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
@@ -368,7 +414,7 @@ URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 - If y-value falls below (or above) threshold at 18, it will send a message to CEMS.
 
 5. A notices a stranger at his door. The stranger seems to be holding a suspicious box and a knife.
-- A presses the ERM, otherwise known as `SW3`.
+- A presses the Emergency Response Mode (ERM), otherwise known as `SW3`.
 - CEMS receives A's notification immediately. While A waits for a response, his screen shows a `HELP REQUESTED` message and buzzes loudly so that neighbors can also respond.
 - While doing so, there is no need for any other distractions, so the BLUE and RED lights do not come on.
 - A panics and presses ERM again, and a repeat message is sent to CEMS. URCUTE continues to buzz.
