@@ -132,6 +132,60 @@ void EINT3_IRQHandler(void) {
 }
 ```
 
+#### Note on interrupts
+There are a total of 3 interrupts used in URCUTE, in order of priority:
+
+- SysTick: Takes note of timing
+- EINT3: Light sensor
+- EINT0: SW3
+
+Their priorities are set by `NVIC_SetPriority()`, as below
+```
+void eint_init(void) {
+	NVIC_SetPriority(SysTick_IRQn, 1); // Timer has the highest priority.
+
+	// Enable EINT3 interrupt
+	NVIC_ClearPendingIRQ(EINT3_IRQn);
+	NVIC_SetPriority(EINT3_IRQn, 2); // Light has higher priority than button.
+	NVIC_EnableIRQ(EINT3_IRQn);
+
+	// Enable EINT0 interrupt with SW3
+	LPC_SC->EXTINT = 1; // Clear existing interrupts.
+	NVIC_ClearPendingIRQ(EINT0_IRQn);
+	NVIC_SetPriority(EINT0_IRQn, 3);
+	NVIC_EnableIRQ(EINT0_IRQn);
+}
+```
+
+_Note that lower number corresponds to higher priority._
+
+#### Sending to CEMS via XBee
+CEMS is simply a UART Serial terminal on a computer with a corresponding XBee pair connected to it. The following code sets it up on URCUTE, with baud rate at 115200.
+```
+void pinsel_uart3(void){
+	// P0.0: uart1tx
+	// P0.1: uart1rx
+	PINSEL_CFG_Type PinCfg;
+	PinCfg.Funcnum = 2;
+	PinCfg.Pinnum = 0;
+	PinCfg.Portnum = 0;
+	PINSEL_ConfigPin(&PinCfg);
+	PinCfg.Pinnum = 1;
+	PINSEL_ConfigPin(&PinCfg);
+}
+
+void init_uart(void){
+	UART_CFG_Type uartCfg;
+	uartCfg.Baud_rate = 115200;
+	uartCfg.Databits = UART_DATABIT_8;
+	uartCfg.Parity = UART_PARITY_NONE;
+	uartCfg.Stopbits = UART_STOPBIT_1;
+	pinsel_uart3();	//pin select for uart3
+	UART_Init(LPC_UART3, &uartCfg); //supply power & setup working parameters for uart3
+	UART_TxCmd(LPC_UART3, ENABLE); //enable transmit for uart3
+}
+```
+
 The remaining code initializes the various peripherals on the EaBaseBoard URCUTE is built on. There is nothing significant about them, and we will not be elaborating in detail here.
 
 ```
@@ -141,7 +195,6 @@ joystick_init();
 rgb_init(); // Since green LED interferes with OLED, do not use.
 oled_init();
 led7seg_init();
-init_uart();
 RTC_Init(LPC_RTC);
 eint_init();
 rotary_init();
