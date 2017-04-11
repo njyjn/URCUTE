@@ -467,7 +467,6 @@ int main (void) {
 					reset();
 					mode = MODE_MONITOR;
 				} else if (mode == MODE_MONITOR) {
-					printf("Entering STABLE mode.\n");
 					mode = MODE_STABLE;
 				}
 				mode_button = 1;
