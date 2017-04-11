@@ -242,6 +242,8 @@ static void sendToCems(unsigned char *string) {
 
 /** INTERRUPT HANDLERS **/
 void eint_init(void) {
+	NVIC_SetPriority(SysTick_IRQn, 1); // Timer has the highest priority.
+
 	// Enable EINT3 interrupt
 	NVIC_ClearPendingIRQ(EINT3_IRQn);
 	NVIC_SetPriority(EINT3_IRQn, 2); // Light has higher priority than button.
@@ -250,7 +252,7 @@ void eint_init(void) {
 	// Enable EINT0 interrupt with SW3
 	LPC_SC->EXTINT = 1; // Clear existing interrupts.
 	NVIC_ClearPendingIRQ(EINT0_IRQn);
-	NVIC_SetPriority(EINT0_IRQn, 1);
+	NVIC_SetPriority(EINT0_IRQn, 3);
 	NVIC_EnableIRQ(EINT0_IRQn);
 }
 
