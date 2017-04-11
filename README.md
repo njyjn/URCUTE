@@ -151,6 +151,11 @@ Monitor mode is used when no caretaker is available. It samples
 3. the ambient light in _lux_, every 5 seconds
 
 and sends these to CEMS with format `NNN_-_T*****_L*****_AX*****_AY*****_AZ*****\r\n` every 5 seconds (or when the seven-segment display shows '5', 'A', or 'F').
+```
+static void sendToCems(unsigned char *string) {
+	UART_Send(LPC_UART3, (uint8_t *) string, strlen(string), BLOCKING);
+}
+```
 
 In addition to the above factors, the following alarms are activated upon
 
@@ -369,10 +374,29 @@ URCUTE may be remotely controlled via an authorized attendant at the CEMS HQ.
 
 <kbd>s</kbd>: Change to STABLE mode.<br>
 <kbd>m</kbd>: Change to MONITOR mode.<br>
-<kbd>e</kbd>: Acknowledge EMERGENCY mode. Informs URCUTE that help is on its way, so it silences its alarms.
+<kbd>e</kbd>: Acknowledge EMERGENCY mode. Informs URCUTE that help is on its way, so it silences its alarms.<br>
+
+The following hunk of code, using `UART_Receive` library, enables this incoming mode of communication.
+```
+UART_Receive(LPC_UART3, &data, 1, NONE_BLOCKING);
+		if (data == 's') {
+			mode = MODE_STABLE;
+			data = 0;
+			sendToCems("\r\nEntering STABLE mode by CEMS.\r\n");
+		} else if (data == 'm') {
+			mode = MODE_MONITOR;
+			data = 0;
+			sendToCems("\r\nEntering MONITOR mode by CEMS.\r\n");
+		} else if (data == 'e' && mode == MODE_MONITOR && emergency_flag == EMER_WAIT) {
+			emergency_flag = EMER_RESOLVED;
+			data = 0;
+			sendToCems("\r\nCEMS responding to emergency...\r\n");
+		}
+
+```
 
 ## Use Cases: Elderly Person A
-0. Caretaker sets up URCUTE and heads back to CEMS HQ.
+### 0. Caretaker sets up URCUTE and heads back to CEMS HQ.
 - Caretaker straps URCUTE on A and hits the Mode Change (MC) button, also known as `SW4`.
 - The OLED comes to life, showing the word `MONITOR` and environment information.
 
