@@ -624,7 +624,7 @@ int main (void) {
 					}
 				}
 				oled_clearScreen(OLED_COLOR_BLACK);
-				oled_putString(0,0,"READING", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
+				oled_putString(0,0,"NIGHT", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 				oled_fillRect(0, 10, xW, OLED_DISPLAY_HEIGHT, OLED_COLOR_WHITE);
 			}
 			break;
