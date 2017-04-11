@@ -20,7 +20,6 @@
 #include "oled.h"
 #include "rgb.h"
 #include "led7seg.h"
-#include "uart2.h"
 #include "rotary.h"
 
 #include <stdio.h>
@@ -336,7 +335,7 @@ static void sampleEnvironmentAnd(sample_mode_t sample_mode) {
 		sprintf(temp, "%.1f degrees C\r", temperature);
 		sprintf(lux, "%d lux", light);
 		sprintf(acc, "%dx, %dy, %dz\r", x,y,z);
-		sprintf(warning, "%s", blink_red?"FIRE!":blink_blue?"DARK!":blink_red&&blink_blue?"FIRE! DARK!":" ");
+		sprintf(warning, "%s", blink_red&&blink_blue?"FIRE! DARK!":blink_red?"FIRE!":blink_blue?"DARK!":" ");
 		oled_clearScreen(OLED_COLOR_BLACK);
 		oled_putString(0,0, "MONITOR", OLED_COLOR_WHITE, OLED_COLOR_BLACK);
 		oled_putString(0,10, warning, OLED_COLOR_WHITE, OLED_COLOR_BLACK);
