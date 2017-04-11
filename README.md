@@ -1,8 +1,12 @@
 # URCUTE
-Unnecessarily Redundant Care Unit for The Elderly (CUTE) is a variation of EE2024 CUTE, build for EE2024 by [Justin Ng](http://github.com/njyjn) and [Lim Hong Wei](http://github.com/imhongw). It is strictly for educational purposes and not to be used on a real elderly patient. Get an Apple Watch for them or something.
+Unnecessarily Redundant Care Unit for The Elderly (CUTE) is a variation of EE2024 CUTE, built for EE2024 by [Justin Ng](http://github.com/njyjn) and [Lim Hong Wei](http://github.com/imhongw) as **Assignment 2**. It is strictly for educational purposes and not to be used on a real elderly patient. Get an Apple Watch for them or something.
 
 ## About
 URCUTE is designed for the elderly person who wholly entrusts their care to a a Central Elderly Monitoring System (CEMS).
+
+The ease of understanding lies in the fact that URCUTE only runs from a single file. No more complicated header structures and variables that seem to come out of nowhere. All global flags are declared up top, and all timer variables are declared at the top of `void main()`.
+
+For detailed assignment requirements, visit the [EE2024 wiki](http://wiki.nus.edu.sg/display/ee2024).
 
 ## Modes
 URCUTE has two basic modes: [STABLE](#stable-mode) and [MONITOR](#monitor-mode), two enhanced modes: [NIGHT](#night-mode) and [EMERGENCY](#emergency-mode), and one quasi-mode: [CEMS OVERRIDE](#cems-override-mode).
@@ -456,3 +460,11 @@ UART_Receive(LPC_UART3, &data, 1, NONE_BLOCKING);
 - The neighbor responds and asks A to turn it down because it is hurting her.
 - A turns the rotary anti-clockwise to decrease the pitch of the emergency buzzer.
 - The person at the door is spooked and decides to leave.
+
+## License
+
+Code released under the [MIT License](https://choosealicense.com/licenses/mit/).
+
+Copyright (c) [2017] [Justin Ng] [Lim Hong Wei], ECE (CEG2) @ NUS
+
+_Stay hungry, stay foolish._
