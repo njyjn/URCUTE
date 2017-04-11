@@ -441,6 +441,7 @@ void reset() {
 	blink_blue = 0;	// Clear blink blue flag
 	light_flag = LIGHT_NORMAL; // Absolve light warning
 	movement = MOVEMENT_NO; // Absolve movement
+	fall = FALL_NO;
 	emergency_flag = EMER_NO; // Clear emergency
 	pca9532_setLeds(0, 0xffff); // Clear floodlights
 	GPIO_ClearValue( 2, 1); // Clear red
