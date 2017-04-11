@@ -519,7 +519,7 @@ int main (void) {
 				// Sample acceleration
 				sampleAcc();
 				// SSEG display increments by 1 per second (SSP/SSI)
-				static int cycler = 16;
+				static int cycler = 14;
 				led7seg_setChar(sevenSegChars[++cycler%16], FALSE);
 				// Sample the environment every 5 seconds.
 				if (cycler%16 == 5 || cycler%16 == 10) {
