@@ -1,5 +1,5 @@
 # URCUTE
-Unnecessarily Redundant Care Unit for The Elderly (CUTE) is a variation of EE2024 CUTE, build for EE2024 by [Justin Ng](http://github.com/njyjn) and [Lim Hong Wei](http://github.com/imhongwei). It is strictly for educational purposes and not to be used on a real elderly patient. Get an Apple Watch for them or something.
+Unnecessarily Redundant Care Unit for The Elderly (CUTE) is a variation of EE2024 CUTE, build for EE2024 by [Justin Ng](http://github.com/njyjn) and [Lim Hong Wei](http://github.com/imhongw). It is strictly for educational purposes and not to be used on a real elderly patient. Get an Apple Watch for them or something.
 
 ## About
 URCUTE is designed for the elderly person who wholly entrusts their care to a a Central Elderly Monitoring System (CEMS).
