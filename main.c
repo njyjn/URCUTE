@@ -193,7 +193,7 @@ static void init_GPIO(void) {
 /* ==================== END INIT PROTOCOLS */
 
 /** LIGHT SENSOR CONFIG **/
-const uint32_t lightLoLimit = 50, lightHiLimit = 4000;
+const uint32_t lightLoLimit = 50, lightHiLimit = 3891;
 
 static void config_light(void) {
 	// Setup light limit for triggering interrupt
@@ -640,4 +640,3 @@ void check_failed(uint8_t *file, uint32_t line)
 	/* Infinite loop */
 	while(1);
 }
-

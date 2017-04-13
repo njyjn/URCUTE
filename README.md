@@ -105,7 +105,7 @@ yoff = 0 - y;
 zoff = 0 - z;
 ```
 
-URCUTE then sets up its light sensors in `light_enable()` (provided in `Lib_EaBaseBoard`) and `config_light()`. Of note is that we are setting up a light IRQ (`P2.5`) as falling edge interrupt. So when the reading falls below or above the specified threshold (in our case, 50 and 5000 respectively), an interrupt flag is written to `P2.5`.
+URCUTE then sets up its light sensors in `light_enable()` (provided in `Lib_EaBaseBoard`) and `config_light()`. Of note is that we are setting up a light IRQ (`P2.5`) as falling edge interrupt. So when the reading falls below or above the specified threshold (in our case, 50 and 3891* respectively), an interrupt flag is written to `P2.5`.
 
 ```
 static void config_light(void) {
@@ -131,6 +131,12 @@ void EINT3_IRQHandler(void) {
 	}
 }
 ```
+
+---
+* **IMPORTANT** It is intuitive to use 4000 as the `lightHiLimit` to represent its maximum value, that is, so that any lux value higher than 4000 (which is impossible given `LIGHT_RANGE_4000`) would not trigger anything. However, in our tests, we found that setting to _3891_ was the maximum permissible threshold for the interrupt to be activated correctly. Any value above 3891 would cause the interrupt to be issue **regardless** of lux value.
+
+Further research finds that a max value of 972 for `LIGHT_RANGE_1000` (essentially 3892/4 - 1) applies. This has to do with an overflowing bit issue with the light sensor and will not be explained in the scope of this project. Do remember to take this in mind when setting `lightHiLimit`. The effect does not apply to `lightLoLimit`.
+---
 
 #### Note on interrupts
 There are a total of 3 interrupts used in URCUTE, in order of priority:
